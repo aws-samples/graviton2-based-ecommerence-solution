@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: odoo efs Template
+Parameters:
+  EFSSecurityGroup:
+    Description: EFS Security Group
+    Type: AWS::EC2::SecurityGroup::Id
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+Resources:
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: false
+      FileSystemTags:
+      - Key: Name
+        Value: EFS AWS Quick Start
+  MountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroups:
+      - !Ref EFSSecurityGroup
+  MountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref PublicSubnet2
+      SecurityGroups:
+      - !Ref EFSSecurityGroup
+Outputs:
+  FileSystemID:
+    Description: odoo FileSystemID for two PublicSubnet
+    Value: !Ref FileSystem
+...

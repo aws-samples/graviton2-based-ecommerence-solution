@@ -1,0 +1,260 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: odoo eks Web Server Template
+Parameters:
+  FileSystem:
+    Type: String
+    Default: fs-2b6aa62c
+  EKSNodeType: 
+    Type: String
+    Default: c6g.large
+  EKSNodes:
+    Type: Number
+    Default: 2
+  SpotNodeGroup:
+    Type: String
+    Default: false
+  DBEndPointAddress:
+    Type: String
+    Default: op27vrx7555aq0.crg58mp5f0ba.us-west-2.rds.amazonaws.com
+  ElastiCacheEndpoint:
+    Description: ElastiCache Endpoint
+    Default: ode61nn1zl0vpnt.xuixoi.ng.0001.usw2.cache.amazonaws.com
+    Type: String
+  EKSName:
+    Default: odoo
+    Type: String
+  AdminPassword:
+    Type: String
+    Default: admin
+  DBMasterUserPassword:
+    Type: String
+    Default: awspartner
+  DBMasterUsername:
+    Default: odoo
+    Type: String
+  DBName:
+    Default: OdooDB
+    Type: String
+  KeyPair:
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: odoo
+  VPCID:
+    Description: VPC ID
+    Default: vpc-0d3a937e7cfd0af62
+    Type: AWS::EC2::VPC::Id
+  WebServerInstanceType:
+    AllowedValues:
+      - c6g.medium
+      - c6g.large
+      - c6g.xlarge
+      - c6gn.medium
+      - t4g.micro
+      - t4g.small
+      - t4g.large
+      - t4g.medium
+    Default: t4g.micro
+    Description: Amazon EC2 instance type for the WebServer instances
+    Type: String
+  WebServerSecurityGroup:
+    Description: Web Server Security Group
+    Default: sg-0efa70beb49412dd2
+    Type: AWS::EC2::SecurityGroup::Id
+  Subnet1ID:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0162b33c206202d38
+  Subnet2ID:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-062a0fb910c3ce230
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id  
+    Default: subnet-0ac775037f7467934
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-00a8fa09d69d7e752
+Mappings:
+  AWSRegion2AMI:
+    ap-northeast-1:
+      HVM64: ami-0661694c01306dbc9
+    ap-northeast-2:
+      HVM64: ami-0df7659587273dd64
+    ap-southeast-1:
+      HVM64: ami-03a5e53f49fd3479f
+    ap-southeast-2:
+      HVM64: ami-068d6f6933b83326c
+    eu-central-1:
+      HVM64: ami-016f4f002606a1417
+    sa-east-1:
+      HVM64: ami-0fc6c9fc1e189260f
+    us-east-1:
+      HVM64: ami-0c3dda3deab25a563
+    us-east-2:
+      HVM64: ami-0f10e11691c9ab660
+    us-west-1:
+      HVM64: ami-00872c48515f06ba0
+    us-west-2:
+      HVM64: ami-0f9eefbab78499455
+Resources:
+  OdooMainLogGroup:
+    Type: AWS::Logs::LogGroup
+  NewIamInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogStreams
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${OdooMainLogGroup}:*
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+        PolicyName: WEB-Instance-Role
+  NewIamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref NewIamInstanceRole
+  WebServerInstanceWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  WebServerInstanceWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: WebServerInstance
+    Properties:
+      Handle: !Ref WebServerInstanceWaitHandle
+      Timeout: '6000'
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Install a odoo on eks
+      AWS::CloudFormation::Authentication:
+        S3AccessCreds:
+          type: S3
+          roleName: !Ref NewIamInstanceRole
+      AWS::CloudFormation::Init:
+        config:
+          awscli:
+            commands:
+              00_set_default_s3_signature_version:
+                command: aws configure set default.s3.signature_version s3v4
+              01_set_default_region:
+                command: !Sub "aws configure set default.region '${AWS::Region}'"
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file= /var/log/agent-state
+                [/home/ec2-user/misc/install]
+                file = /var/log/cloud-init-output.log
+                log_group_name = ${OdooMainLogGroup}
+                log_stream_name = {instance_id}/odoo/install.log
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WebServerInstance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebServerInstance --region ${AWS::Region}
+                runas=root
+            /tmp/params.txt:
+              content:
+                !Sub |
+                  Subnet1ID|${Subnet1ID}
+                  Subnet2ID|${Subnet2ID}
+                  PublicSubnet1|${PublicSubnet1}
+                  PublicSubnet2|${PublicSubnet2}
+                  EKSName|${EKSName}
+                  EKSNodeType|${EKSNodeType}
+                  EKSNodes|${EKSNodes}
+                  DBEndPointAddress|${DBEndPointAddress}
+                  DBMasterUsername|${DBMasterUsername}
+                  DBMasterUserPassword|${DBMasterUserPassword}
+                  DBName|${DBName}
+                  AdminPassword|${AdminPassword}
+                  ElastiCacheEndpoint|${ElastiCacheEndpoint}
+                  FileSystem|${FileSystem}
+                  SpotNodeGroup|${SpotNodeGroup}
+                  VPCID|${VPCID}
+                  KeyPair|${KeyPair}
+              mode: '000440'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: 'true'
+                ensureRunning: 'true'
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              awslogs:
+                enabled: 'true'
+                ensureRunning: 'true'
+                files:
+                - /etc/awslogs/awslogs.conf
+                packages:
+                  yum:
+                  - awslogs
+    Properties:
+      KeyName: !Ref KeyPair
+      IamInstanceProfile: !Ref NewIamInstanceProfile
+      ImageId: !FindInMap [AWSRegion2AMI, !Ref 'AWS::Region', HVM64]
+      InstanceType: !Ref WebServerInstanceType
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+      - !Ref WebServerSecurityGroup
+      UserData:
+        !Base64
+          Fn::Sub: |
+            #!/bin/bash
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebServerInstance  --region ${AWS::Region}
+            curl -o install_odoo.sh https://awspsa-quickstart.s3.cn-northwest-1.amazonaws.com.cn/awspsa-odoo/scripts/install_odoo.sh
+            chmod a+x install_odoo.sh
+            ./install_odoo.sh
+            /opt/aws/bin/cfn-signal -e $? -d "`cat /home/ec2-user/outputurl`" -r "Build Process Complete" '${WebServerInstanceWaitHandle}'
+      Tags:
+      - Key: Name
+        Value: Odoo admin Instance (china-PSA)
+Outputs:
+  AdminURL:
+    Description: Admin path
+    Value: !GetAtt WebServerInstanceWaitCondition.Data
+...

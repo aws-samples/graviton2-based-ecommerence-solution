@@ -1,0 +1,67 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Odoo Elasticache Template 
+Parameters:
+  ElastiCacheAutomaticFailover:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+    Description: Select true/false to setup Automatic Failover
+    Type: String
+  ElastiCacheNodeType:
+    AllowedValues:
+    - cache.m6g.large
+    - cache.m6g.xlarge
+    - cache.m6g.2xlarge
+    - cache.m6g.4xlarge
+    - cache.r6g.large
+    - cache.r6g.xlarge
+    - cache.r6g.2xlarge
+    - cache.r6g.4xlarge
+    - cache.r6g.8xlarge
+    - cache.m5.large
+    - cache.m5.2xlarge
+    ConstraintDescription: Must select a valid cache instance type.
+    Default: cache.m6g.large
+    Type: String
+  ElastiCacheNodes:
+    ConstraintDescription: must be between 2 and 5
+    Default: '2'
+    Description: Number of nodes in the ElastiCache cluster
+    MaxValue: '5'
+    MinValue: '2'
+    Type: Number
+  ElastiCacheSecurityGroup:
+    Description: ElastiCache Security Group
+    Type: AWS::EC2::SecurityGroup::Id
+  Subnet1ID:
+    Description: The ID of the private subnet in Availability Zone 1.
+    Type: 'AWS::EC2::Subnet::Id'
+  Subnet2ID:
+    Description: The ID of the private subnet in Availability Zone 2.
+    Type: 'AWS::EC2::Subnet::Id'
+Resources:
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnets available for the Redis Cache Instance (AWS Quick Start)
+      SubnetIds:
+        - !Ref Subnet1ID
+        - !Ref Subnet2ID
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: ElastiCache Cluster (AWS Quick Start)
+      AutomaticFailoverEnabled: !Ref ElastiCacheAutomaticFailover
+      CacheNodeType: !Ref ElastiCacheNodeType
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      Engine: redis
+      NumCacheClusters: !Ref ElastiCacheNodes
+      SecurityGroupIds:
+      - !Ref ElastiCacheSecurityGroup
+Outputs:
+  ElastiCacheEndpoint:
+    Description: ElastiCache address
+    Value: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+...
