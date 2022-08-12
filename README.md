@@ -3,6 +3,8 @@
 This is the code used for Graviton2-based-ecommerence-solution Workshop. Please find the detailed workshop guide [here](https://graviton2.awspsa.com/0_4.1-%E5%AE%9E%E9%AA%8C1%E9%80%9A%E8%BF%87cloudformation-%E6%A8%A1%E6%9D%BF%E9%83%A8%E7%BD%B2%E5%AE%9E%E9%AA%8C%E6%9E%B6%E6%9E%84.html). Or download the deployment guide [here](https://awspsa-quickstart.s3.cn-northwest-1.amazonaws.com.cn/public/AWS+Cloudformation%3A%E9%83%A8%E7%BD%B2%E6%8C%87%E5%8D%97.pdf).
 Please find the detailed workshop demo [here](https://www.awspsa.com). 
 
+![Solution Architecture](resource/Architecture.png) 
+
 ## Prerequisites
 
 To build and deploy this stack, please have the following tools installed. 
